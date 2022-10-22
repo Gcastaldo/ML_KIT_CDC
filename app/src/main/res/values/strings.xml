@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">CDC2022</string>
+    <string name="take_photo">Take photo</string>
+    <string name="take_photo_process">Take a new photo to process</string>
+    <string name="image_process">Process image</string>
+    <string name="extract_information">Extract Information</string>
+</resources>
