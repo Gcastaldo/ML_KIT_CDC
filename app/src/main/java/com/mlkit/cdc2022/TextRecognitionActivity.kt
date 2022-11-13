@@ -2,10 +2,7 @@ package com.mlkit.cdc2022
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.graphics.Rect
+import android.graphics.*
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -17,6 +14,7 @@ import androidx.exifinterface.media.ExifInterface
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.ObjectDetection
 import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.mlkit.cdc2022.databinding.ActivityTextRecognitionBinding
@@ -37,6 +35,7 @@ class TextRecognitionActivity : AppCompatActivity() {
     private lateinit var binding: ActivityTextRecognitionBinding
     private lateinit var currentPhotoPath: String
     private var capturedBitmap: Bitmap? = null
+    private var visionText: Text? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,7 +51,7 @@ class TextRecognitionActivity : AppCompatActivity() {
         if (requestCode == REQUEST_IMAGE_CAPTURE &&
             resultCode == Activity.RESULT_OK
         ) {
-            capturedBitmap = getCapturedImage()
+            getCapturedImage()
             binding.captureImageFab.text = getString(R.string.image_process)
             binding.captureImageFab.setOnClickListener {
                 processImage()
@@ -60,42 +59,44 @@ class TextRecognitionActivity : AppCompatActivity() {
         }
     }
 
-    private fun processImage(){
+    private fun processImage() {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         val image = capturedBitmap?.let { InputImage.fromBitmap(it, 0) }
         val list = arrayListOf<String>()
         val result = image?.let {
             recognizer.process(it)
-                .addOnSuccessListener { visionText ->
+                .addOnSuccessListener { text ->
                     // [START get_text]
-                    for (block in visionText.textBlocks) {
+                    visionText = text
+                    text.textBlocks.forEachIndexed { i, block ->
                         val boundingBox = block.boundingBox
                         val cornerPoints = block.cornerPoints
                         val text = block.text
-                        for (line in block.lines) {
+                        block.lines.forEachIndexed { j, line ->
                             val lineText = line.text
-                            list.add(lineText)
                             val lineCornerPoints = line.cornerPoints
                             val lineFrame = line.boundingBox
-                            for (element in line.elements) {
+                            list.add(lineText)
+                            line.elements.forEachIndexed { k, element ->
                                 val elementText = element.text
                                 val elementCornerPoints = element.cornerPoints
                                 val elementFrame = element.boundingBox
+
                             }
                         }
                     }
-                    val intent = Intent(this,ResultActivity::class.java)
+                   val intent = Intent(this, ResultActivity::class.java)
                     intent.putStringArrayListExtra("result", list)
                     startActivity(intent)
                     // [END get_text]
                 }
                 .addOnFailureListener { e ->
-                   Log.d("Error processing:","image detect text -> $e")
+                    Log.d("Error processing:", "image detect text -> $e")
                 }
         }
     }
 
-    private fun getCapturedImage(): Bitmap {
+    private fun getCapturedImage(){
         // Get the dimensions of the View
         val targetW: Int = binding.previewImage.width
         val targetH: Int = binding.previewImage.height
@@ -119,9 +120,8 @@ class TextRecognitionActivity : AppCompatActivity() {
         }
         val bitmap = BitmapFactory.decodeFile(currentPhotoPath)
 
-        val bitmapResult = runObjectDetection(bitmap)
+        runObjectDetection(bitmap)
 
-        return bitmapResult
     }
 
     private fun runObjectDetection(bitmap: Bitmap): Bitmap {
@@ -137,7 +137,6 @@ class TextRecognitionActivity : AppCompatActivity() {
         val objectDetector = ObjectDetection.getClient(options)
 
         objectDetector.process(image).addOnSuccessListener { results ->
-            //debugPrint(results)
 
             // Parse ML Kit's DetectedObject and create corresponding visualization data
             val detectedObjects = results.map {
@@ -152,6 +151,7 @@ class TextRecognitionActivity : AppCompatActivity() {
             }
 
             val visulizedResult = cropItemDetected(bitmap, detectedObjects)
+            capturedBitmap = visulizedResult
             binding.previewImage.setImageBitmap(visulizedResult)
             outputBitmap = visulizedResult
         }.addOnFailureListener {
@@ -166,9 +166,7 @@ class TextRecognitionActivity : AppCompatActivity() {
         val bottom = detectedObjects[0].box.bottom
         val top = detectedObjects[0].box.top
         var outputBitmap = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
-        /*if(outputBitmap.width > outputBitmap.height){
-            outputBitmap = rotateImage(outputBitmap, 90f)
-        }*/
+
         return outputBitmap
     }
 
@@ -181,7 +179,7 @@ class TextRecognitionActivity : AppCompatActivity() {
         )
     }
 
-    private fun takePhoto(){
+    private fun takePhoto() {
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).also { takePictureIntent ->
             // Ensure that there's a camera activity to handle the intent
             takePictureIntent.resolveActivity(packageManager)?.also {
