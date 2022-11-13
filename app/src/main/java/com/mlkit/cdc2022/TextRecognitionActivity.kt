@@ -5,7 +5,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
-import android.graphics.Rect
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -13,8 +12,8 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.content.FileProvider
-import androidx.exifinterface.media.ExifInterface
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.objects.DetectedObject
 import com.google.mlkit.vision.objects.ObjectDetection
 import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 import com.google.mlkit.vision.text.TextRecognition
@@ -67,7 +66,6 @@ class TextRecognitionActivity : AppCompatActivity() {
         val result = image?.let {
             recognizer.process(it)
                 .addOnSuccessListener { visionText ->
-                    // [START get_text]
                     for (block in visionText.textBlocks) {
                         val boundingBox = block.boundingBox
                         val cornerPoints = block.cornerPoints
@@ -87,7 +85,6 @@ class TextRecognitionActivity : AppCompatActivity() {
                     val intent = Intent(this,ResultActivity::class.java)
                     intent.putStringArrayListExtra("result", list)
                     startActivity(intent)
-                    // [END get_text]
                 }
                 .addOnFailureListener { e ->
                    Log.d("Error processing:","image detect text -> $e")
@@ -96,12 +93,10 @@ class TextRecognitionActivity : AppCompatActivity() {
     }
 
     private fun getCapturedImage(): Bitmap {
-        // Get the dimensions of the View
         val targetW: Int = binding.previewImage.width
         val targetH: Int = binding.previewImage.height
 
         val bmOptions = BitmapFactory.Options().apply {
-            // Get the dimensions of the bitmap
             inJustDecodeBounds = true
 
             BitmapFactory.decodeFile(currentPhotoPath, this)
@@ -109,10 +104,8 @@ class TextRecognitionActivity : AppCompatActivity() {
             val photoW: Int = outWidth
             val photoH: Int = outHeight
 
-            // Determine how much to scale down the image
             val scaleFactor: Int = max(1, min(photoW / targetW, photoH / targetH))
 
-            // Decode the image file into a Bitmap sized to fill the View
             inJustDecodeBounds = false
             inSampleSize = scaleFactor
             inMutable = true
@@ -126,7 +119,7 @@ class TextRecognitionActivity : AppCompatActivity() {
 
     private fun runObjectDetection(bitmap: Bitmap): Bitmap {
         val image = InputImage.fromBitmap(bitmap, 0)
-        //init bitmap
+
         var outputBitmap = bitmap
 
         val options = ObjectDetectorOptions.Builder()
@@ -137,21 +130,8 @@ class TextRecognitionActivity : AppCompatActivity() {
         val objectDetector = ObjectDetection.getClient(options)
 
         objectDetector.process(image).addOnSuccessListener { results ->
-            //debugPrint(results)
 
-            // Parse ML Kit's DetectedObject and create corresponding visualization data
-            val detectedObjects = results.map {
-                var text = "Unknown"
-
-                // We will show the top confident detection result if it exist
-                if (it.labels.isNotEmpty()) {
-                    val firstLabel = it.labels.first()
-                    text = "${firstLabel.text}, ${firstLabel.confidence.times(100).toInt()}%"
-                }
-                BoxWithText(it.boundingBox, text)
-            }
-
-            val visulizedResult = cropItemDetected(bitmap, detectedObjects)
+            val visulizedResult = cropItemDetected(bitmap, results)
             binding.previewImage.setImageBitmap(visulizedResult)
             outputBitmap = visulizedResult
         }.addOnFailureListener {
@@ -160,15 +140,12 @@ class TextRecognitionActivity : AppCompatActivity() {
         return outputBitmap
     }
 
-    private fun cropItemDetected(bitmap: Bitmap, detectedObjects: List<BoxWithText>): Bitmap {
-        val left = detectedObjects[0].box.left
-        val right = detectedObjects[0].box.right
-        val bottom = detectedObjects[0].box.bottom
-        val top = detectedObjects[0].box.top
+    private fun cropItemDetected(bitmap: Bitmap, detectedObjects: MutableList<DetectedObject>): Bitmap {
+        val left = detectedObjects[0].boundingBox.left
+        val right = detectedObjects[0].boundingBox.right
+        val bottom = detectedObjects[0].boundingBox.bottom
+        val top = detectedObjects[0].boundingBox.top
         var outputBitmap = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
-        /*if(outputBitmap.width > outputBitmap.height){
-            outputBitmap = rotateImage(outputBitmap, 90f)
-        }*/
         return outputBitmap
     }
 
@@ -183,16 +160,13 @@ class TextRecognitionActivity : AppCompatActivity() {
 
     private fun takePhoto(){
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).also { takePictureIntent ->
-            // Ensure that there's a camera activity to handle the intent
             takePictureIntent.resolveActivity(packageManager)?.also {
-                // Create the File where the photo should go
                 val photoFile: File? = try {
                     createImageFile()
                 } catch (e: IOException) {
                     Log.e(TAG, e.message.toString())
                     null
                 }
-                // Continue only if the File was successfully created
                 photoFile?.also {
                     val photoURI: Uri = FileProvider.getUriForFile(
                         this,
@@ -208,18 +182,14 @@ class TextRecognitionActivity : AppCompatActivity() {
 
     @Throws(IOException::class)
     private fun createImageFile(): File {
-        // Create an image file name
         val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
         val storageDir: File? = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
         return File.createTempFile(
-            "JPEG_${timeStamp}_", /* prefix */
-            ".jpg", /* suffix */
-            storageDir /* directory */
+            "JPEG_${timeStamp}_",
+            ".jpg",
+            storageDir
         ).apply {
-            // Save a file: path for use with ACTION_VIEW intents
             currentPhotoPath = absolutePath
         }
     }
 }
-
-data class BoxWithText(val box: Rect, val text: String)
