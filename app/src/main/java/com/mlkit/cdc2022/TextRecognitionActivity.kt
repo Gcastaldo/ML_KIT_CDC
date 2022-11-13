@@ -11,6 +11,8 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import android.view.View
+import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.DetectedObject
@@ -52,9 +54,26 @@ class TextRecognitionActivity : AppCompatActivity() {
             resultCode == Activity.RESULT_OK
         ) {
             capturedBitmap = getCapturedImage()
-            binding.captureImageFab.text = getString(R.string.image_process)
-            binding.captureImageFab.setOnClickListener {
-                processImage()
+            if (capturedBitmap != null) {
+                binding.retryFab.visibility = View.VISIBLE
+                binding.retryFab.setOnClickListener {
+                    takePhoto()
+                }
+                binding.textDescription.text = getString(R.string.description_process)
+                binding.captureImageFab.text = getString(R.string.image_process)
+                binding.captureImageFab.setCompoundDrawables(
+                    null,
+                    null,
+                    getDrawable(R.drawable.ic_image),
+                    null
+                )
+                binding.captureImageFab.setOnClickListener {
+                    processImage()
+                }
+            } else {
+                Toast.makeText(this, "Error in object detection, retry camera!", Toast.LENGTH_LONG)
+                    .show()
+                takePhoto()
             }
         }
     }
@@ -92,7 +111,7 @@ class TextRecognitionActivity : AppCompatActivity() {
         }
     }
 
-    private fun getCapturedImage(): Bitmap {
+    private fun getCapturedImage(): Bitmap? {
         val targetW: Int = binding.previewImage.width
         val targetH: Int = binding.previewImage.height
 
@@ -117,10 +136,10 @@ class TextRecognitionActivity : AppCompatActivity() {
         return bitmapResult
     }
 
-    private fun runObjectDetection(bitmap: Bitmap): Bitmap {
+    private fun runObjectDetection(bitmap: Bitmap): Bitmap? {
         val image = InputImage.fromBitmap(bitmap, 0)
 
-        var outputBitmap = bitmap
+        var outputBitmap: Bitmap? = bitmap
 
         val options = ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.SINGLE_IMAGE_MODE)
@@ -130,12 +149,16 @@ class TextRecognitionActivity : AppCompatActivity() {
         val objectDetector = ObjectDetection.getClient(options)
 
         objectDetector.process(image).addOnSuccessListener { results ->
-
-            val visulizedResult = cropItemDetected(bitmap, results)
-            binding.previewImage.setImageBitmap(visulizedResult)
-            outputBitmap = visulizedResult
+            if(results.isNotEmpty()) {
+                val visulizedResult = cropItemDetected(bitmap, results)
+                binding.previewImage.setImageBitmap(visulizedResult)
+                outputBitmap = visulizedResult
+            }else{
+                outputBitmap = null
+            }
         }.addOnFailureListener {
             Log.e(TAG, it.message.toString())
+            outputBitmap = null
         }
         return outputBitmap
     }
