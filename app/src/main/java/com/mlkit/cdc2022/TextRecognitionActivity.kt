@@ -38,6 +38,11 @@ class TextRecognitionActivity : AppCompatActivity() {
     private lateinit var binding: ActivityTextRecognitionBinding
     private lateinit var currentPhotoPath: String
     private var capturedBitmap: Bitmap? = null
+    private var infoMap: Map<Int, InfoType> = mapOf(
+        Pair(1, InfoType.COGNOME), Pair(2, InfoType.NOME),Pair(3, InfoType.DATA_LUOGO_NASCITA),
+        Pair(4, InfoType.DATA_RILASCIO),Pair(5, InfoType.RILASCIATO_DA),Pair(6, InfoType.SCADENZA),
+        Pair(7, InfoType.NUMERO), Pair(8, InfoType.TIPO)
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,6 +75,10 @@ class TextRecognitionActivity : AppCompatActivity() {
                 binding.captureImageFab.setOnClickListener {
                     processImage()
                 }
+                binding.manualProcessFab.visibility = View.VISIBLE
+                binding.manualProcessFab.setOnClickListener {
+                    manualProcess()
+                }
             } else {
                 Toast.makeText(this, "Error in object detection, retry camera!", Toast.LENGTH_LONG)
                     .show()
@@ -91,7 +100,6 @@ class TextRecognitionActivity : AppCompatActivity() {
                         val text = block.text
                         for (line in block.lines) {
                             val lineText = line.text
-                            list.add(lineText)
                             val lineCornerPoints = line.cornerPoints
                             val lineFrame = line.boundingBox
                             for (element in line.elements) {
@@ -109,6 +117,55 @@ class TextRecognitionActivity : AppCompatActivity() {
                    Log.d("Error processing:","image detect text -> $e")
                 }
         }
+    }
+
+    private fun manualProcess(){
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        val image = capturedBitmap?.let { InputImage.fromBitmap(it, 0) }
+        val list = arrayListOf<String>()
+        val result = image?.let {
+            recognizer.process(it)
+                .addOnSuccessListener { visionText ->
+                    for (block in visionText.textBlocks) {
+                        val boundingBox = block.boundingBox
+                        val cornerPoints = block.cornerPoints
+                        val text = block.text
+                        for (line in block.lines) {
+                            val lineText = line.text
+                            val info = checkAndGetInfo(lineText)
+                            if(info != null) {
+                                list.add(info.first)
+                                list.add(info.second)
+                            }
+                            val lineCornerPoints = line.cornerPoints
+                            val lineFrame = line.boundingBox
+                            for (element in line.elements) {
+                                val elementText = element.text
+                                val elementCornerPoints = element.cornerPoints
+                                val elementFrame = element.boundingBox
+                            }
+                        }
+                    }
+                    val intent = Intent(this,ResultActivity::class.java)
+                    intent.putStringArrayListExtra("result", list)
+                    intent.putExtra("manual", true)
+                    startActivity(intent)
+                }
+                .addOnFailureListener { e ->
+                    Log.d("Error processing:","image detect text -> $e")
+                }
+        }
+    }
+
+    private fun checkAndGetInfo(line: String): Pair<String, String>?{
+        infoMap.forEach {
+            if(line.contains(it.value.valore)){
+                val clearText = line.substringAfter(it.value.valore).trim()
+                val type = it.value.name
+                return Pair(type, clearText)
+            }
+        }
+        return null
     }
 
     private fun getCapturedImage(): Bitmap? {
@@ -150,9 +207,9 @@ class TextRecognitionActivity : AppCompatActivity() {
 
         objectDetector.process(image).addOnSuccessListener { results ->
             if(results.isNotEmpty()) {
-                val visulizedResult = cropItemDetected(bitmap, results)
-                binding.previewImage.setImageBitmap(visulizedResult)
-                outputBitmap = visulizedResult
+                val result = cropItemDetected(bitmap, results)
+                binding.previewImage.setImageBitmap(result)
+                outputBitmap = result
             }else{
                 outputBitmap = null
             }
@@ -168,7 +225,7 @@ class TextRecognitionActivity : AppCompatActivity() {
         val right = detectedObjects[0].boundingBox.right
         val bottom = detectedObjects[0].boundingBox.bottom
         val top = detectedObjects[0].boundingBox.top
-        var outputBitmap = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
+        val outputBitmap = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
         return outputBitmap
     }
 
@@ -214,5 +271,16 @@ class TextRecognitionActivity : AppCompatActivity() {
         ).apply {
             currentPhotoPath = absolutePath
         }
+    }
+
+    enum class InfoType(val valore: String){
+        COGNOME("1."),
+        NOME("2."),
+        DATA_LUOGO_NASCITA("3."),
+        DATA_RILASCIO("4a."),
+        RILASCIATO_DA("4c."),
+        SCADENZA("4b."),
+        NUMERO("5."),
+        TIPO("9.")
     }
 }

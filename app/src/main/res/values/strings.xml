@@ -4,6 +4,7 @@
     <string name="retry_photo">Retry</string>
     <string name="take_photo_process">Open camera to take a new photo to process. Put camera in landscape position for better perfomance.</string>
     <string name="image_process">Process image</string>
+    <string name="manual_image_process">Manual process image</string>
     <string name="description_process">This is your cropped photo centered on your object, click to process image and extract information.</string>
     <string name="extract_information">Extract Information</string>
 </resources>

@@ -12,13 +12,14 @@ class ResultActivity : AppCompatActivity() {
     private lateinit var binding: ActivityResultBinding
     private lateinit var result: ArrayList<String>
     private lateinit var extractor: EntityExtractor
+    private var manual = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityResultBinding.inflate(layoutInflater)
         setContentView(binding.root)
         result = intent.getStringArrayListExtra("result") as ArrayList<String>
-
+        manual = intent.getBooleanExtra("manual", false)
         setupResult()
         setupExtractor()
     }
@@ -28,15 +29,33 @@ class ResultActivity : AppCompatActivity() {
         binding.extractFab.setOnClickListener {
             downloadExtractor()
         }
+        if(manual){
+            setupManualLayout()
+        }
+    }
+
+    private fun setupManualLayout(){
+        with(binding){
+            autoExtractionTextLayout.visibility = View.GONE
+            manualExtractionTextLayout.visibility = View.VISIBLE
+            try {
+                cognome.text = result[result.indexOf(TextRecognitionActivity.InfoType.COGNOME.name)+1]
+                nome.text = result[result.indexOf(TextRecognitionActivity.InfoType.NOME.name)+1]
+                dataluogo.text = result[result.indexOf(TextRecognitionActivity.InfoType.DATA_LUOGO_NASCITA.name)+1]
+                rilascio.text = result[result.indexOf(TextRecognitionActivity.InfoType.DATA_RILASCIO.name)+1].replace("4c.", "da")
+                scadenza.text = result[result.indexOf(TextRecognitionActivity.InfoType.SCADENZA.name)+1]
+                numero.text = result[result.indexOf(TextRecognitionActivity.InfoType.NUMERO.name)+1]
+                tipo.text = result[result.indexOf(TextRecognitionActivity.InfoType.TIPO.name)+1]
+            }catch (e: Exception){
+
+            }
+        }
     }
 
     private fun setupExtractor(){
-        extractor =
-            EntityExtraction.getClient(
+        extractor = EntityExtraction.getClient(
                 EntityExtractorOptions.Builder(EntityExtractorOptions.ENGLISH)
                     .build())
-
-
     }
 
     private fun downloadExtractor(){
@@ -51,10 +70,7 @@ class ResultActivity : AppCompatActivity() {
     }
 
     private fun extractInfo(){
-        val params =
-            EntityExtractionParams.Builder(result.joinToString(" "))
-                    .build()
-
+        val params = EntityExtractionParams.Builder(result.joinToString(" ")).build()
         extractor
             .annotate(params)
             .addOnSuccessListener {
@@ -69,17 +85,12 @@ class ResultActivity : AppCompatActivity() {
         for (entityAnnotation in entityAnnotations) {
             val entities: List<Entity> = entityAnnotation.entities
 
-            Log.d(TAG, "Range: ${entityAnnotation.start} - ${entityAnnotation.end}")
             for (entity in entities) {
                 when (entity) {
                     is PaymentCardEntity -> {
-                        Log.d(TAG, "Card number: ${entity.paymentCardNumber}")
-                        Log.d(TAG, "Card network: ${entity.paymentCardNetwork}")
                         binding.cardNumber.text = entity.paymentCardNumber
                         binding.cardCircuit.text = entity.paymentCardNetwork.toString()
-                        binding.resultText.visibility = View.GONE
                     }
-
                     else -> {
                         Log.d(TAG, "  $entity")
                     }
